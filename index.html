@@ -6,6 +6,62 @@
 	<meta name="description" content="Vic is a product designer focused on human-centered, accessible digital experiences.">
 	<title>Vic — Product Designer</title>
 	<link rel="stylesheet" href="css/styles.css">
+	<style>
+		.weather-card {
+			width: min(100%, 360px);
+			margin-top: 42px;
+			padding: 17px 18px;
+			background: var(--warm);
+			border: 1px solid var(--line);
+			box-shadow: 7px 7px 0 var(--blue);
+		}
+		.weather-label {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			color: var(--muted);
+			font-size: 10px;
+			font-weight: 700;
+			letter-spacing: .14em;
+			text-transform: uppercase;
+		}
+		.weather-location {
+			max-width: 190px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.weather-content {
+			display: flex;
+			align-items: center;
+			gap: 14px;
+			min-height: 58px;
+			margin-top: 8px;
+		}
+		.weather-icon { font-size: 39px; line-height: 1; }
+		.weather-temperature {
+			font-family: var(--serif);
+			font-size: 36px;
+			letter-spacing: -.06em;
+			line-height: 1;
+		}
+		.weather-description { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+		.weather-status { margin: 0; color: var(--muted); font-size: 12px; }
+		.weather-retry {
+			padding: 0;
+			border: 0;
+			background: transparent;
+			color: var(--ink);
+			font: inherit;
+			font-weight: 700;
+			text-decoration: underline;
+			text-underline-offset: 3px;
+			cursor: pointer;
+		}
+		@media (max-width: 760px) {
+			.weather-card { margin-top: 36px; }
+		}
+	</style>
 </head>
 <body>
 	<header class="shell">
@@ -25,6 +81,16 @@
 				<h1 id="intro-title">Making space for <em>better</em> ideas.</h1>
 				<p class="hero-copy"><strong>Hi, I’m Vic.</strong> I design clear, considered digital products that help people feel capable, included, and a little more curious about what comes next.</p>
 				<a class="hero-link" href="pages/work.html">See selected work <span aria-hidden="true">↗</span></a>
+				<aside class="weather-card" aria-labelledby="weather-title">
+					<div class="weather-label">
+						<span id="weather-title">Right now</span>
+						<span class="weather-location" id="weather-location">Finding your location…</span>
+					</div>
+					<div class="weather-content" id="weather-content" aria-live="polite">
+						<span class="weather-icon" aria-hidden="true">⌛</span>
+						<p class="weather-status">Checking the sky near you…</p>
+					</div>
+				</aside>
 			</div>
 			<div class="portrait" aria-label="An abstract portrait illustration in coral, teal and lime" role="img">
 				<span class="portrait-mark" aria-hidden="true"></span>
@@ -68,5 +134,66 @@
 		</div>
 		<div class="shell footer-bottom"><span>© 2026 Vic</span><span><a href="https://www.linkedin.com" rel="noreferrer">LinkedIn</a> &nbsp; / &nbsp; <a href="https://www.are.na" rel="noreferrer">Are.na</a></span></div>
 	</footer>
+	<script>
+		const weatherContent = document.getElementById('weather-content');
+		const weatherLocation = document.getElementById('weather-location');
+		const weatherConditions = {
+			0: ['☀️', 'Clear sky'],
+			1: ['🌤️', 'Mostly clear'],
+			2: ['⛅', 'Partly cloudy'],
+			3: ['☁️', 'Overcast'],
+			45: ['🌫️', 'Foggy'],
+			48: ['🌫️', 'Rime fog'],
+			51: ['🌦️', 'Light drizzle'],
+			53: ['🌦️', 'Drizzle'],
+			55: ['🌧️', 'Heavy drizzle'],
+			61: ['🌦️', 'Light rain'],
+			63: ['🌧️', 'Rain'],
+			65: ['🌧️', 'Heavy rain'],
+			71: ['🌨️', 'Light snow'],
+			73: ['❄️', 'Snow'],
+			75: ['❄️', 'Heavy snow'],
+			80: ['🌦️', 'Rain showers'],
+			81: ['🌧️', 'Rain showers'],
+			82: ['⛈️', 'Heavy showers'],
+			95: ['⛈️', 'Thunderstorm'],
+			96: ['⛈️', 'Storm with hail'],
+			99: ['⛈️', 'Storm with hail']
+		};
+
+		function showWeatherError(message) {
+			weatherLocation.textContent = 'Location unavailable';
+			weatherContent.innerHTML = '<span class="weather-icon" aria-hidden="true">🌍</span><p class="weather-status">' + message + ' <button class="weather-retry" type="button">Try again</button></p>';
+			weatherContent.querySelector('.weather-retry').addEventListener('click', loadWeather);
+		}
+
+		async function loadWeather() {
+			weatherLocation.textContent = 'Finding your location…';
+			weatherContent.innerHTML = '<span class="weather-icon" aria-hidden="true">⌛</span><p class="weather-status">Checking the sky near you…</p>';
+			if (!navigator.geolocation) {
+				showWeatherError('Geolocation is not supported here.');
+				return;
+			}
+			navigator.geolocation.getCurrentPosition(async function (position) {
+				const latitude = position.coords.latitude;
+				const longitude = position.coords.longitude;
+				const endpoint = 'https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weather_code&temperature_unit=fahrenheit';
+				try {
+					const response = await fetch(endpoint);
+					if (!response.ok) throw new Error('Weather request failed');
+					const data = await response.json();
+					const condition = weatherConditions[data.current.weather_code] || ['🌤️', 'Current conditions'];
+					weatherLocation.textContent = latitude.toFixed(2) + '°, ' + longitude.toFixed(2) + '°';
+					weatherContent.innerHTML = '<span class="weather-icon" aria-hidden="true">' + condition[0] + '</span><div><div class="weather-temperature">' + Math.round(data.current.temperature_2m) + '°F</div><p class="weather-description">' + condition[1] + '</p></div>';
+				} catch (error) {
+					showWeatherError('Weather is taking a moment.');
+				}
+			}, function () {
+				showWeatherError('Enable location to see your weather.');
+			}, { enableHighAccuracy: false, maximumAge: 0, timeout: 10000 });
+		}
+
+		loadWeather();
+	</script>
 </body>
 </html>
